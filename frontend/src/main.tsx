@@ -3,18 +3,13 @@ import App from "./App.tsx";
 import "../src/globals.css";
 import Navbar from "@/components/Navbar.tsx";
 import { BrowserRouter } from "react-router-dom";
-import { SWRConfig } from "swr";
+import { Fetcher, SWRConfig } from "swr";
+import { Entries } from "../types/types.ts";
 
-export type entries = {
-  name: string;
-  phone: number;
-  age: number;
-  attendence: number;
-  cgpa: number;
-};
+import "remixicon/fonts/remixicon.css";
 
-const fetcher = async (URLS: string) => {
-  const res = await fetch(URLS);
+const fetcher: Fetcher<Entries[], string> = async (URL) => {
+  const res = await fetch(URL);
 
   if (!res.ok) {
     throw new Error("failed to fetch data from DB");
