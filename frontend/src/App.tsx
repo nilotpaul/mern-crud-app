@@ -3,7 +3,7 @@ import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useSWR, { SWRResponse } from "swr";
 import axios from "axios";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { Entries } from "../types/types";
 import {
@@ -24,9 +24,40 @@ import { Label } from "./shadcn/ui/label";
 import "./globals.css";
 
 function App() {
-  const [isEditing, setIsEditing] = useState(false);
-
   const formSchema = z.object({
+    name: z
+      .string()
+      .min(5, { message: "name too short" })
+      .max(50, { message: "name too long" }),
+    phone: z.coerce
+      .number()
+      .refine(
+        (value) =>
+          value.toString().length <= 10 && value.toString().length >= 10,
+        {
+          message: "invalid number",
+        }
+      ),
+    age: z.coerce
+      .number()
+      .int()
+      .nonnegative({ message: "cannot be negetive" })
+      .gte(18, { message: "underage" })
+      .lte(24, { message: "max age 24" }),
+    attendence: z.coerce
+      .number()
+      .nonnegative()
+      .positive({ message: "min 1 digit" })
+      .lte(100, { message: "exceeded limit of 100" })
+      .multipleOf(0.01),
+    cgpa: z.coerce
+      .number()
+      .lte(10, { message: "exceeded limit of 10" })
+      .positive({ message: "min 1 digit" })
+      .multipleOf(0.01),
+  });
+
+  const formSchema2 = z.object({
     name: z
       .string()
       .min(5, { message: "name too short" })
@@ -79,6 +110,11 @@ function App() {
     resolver: zodResolver(formSchema),
   });
 
+  const { register: register2, handleSubmit: handleSubmit2 } =
+    useForm<formSchema>({
+      resolver: zodResolver(formSchema2),
+    });
+
   // post req
   const submit: SubmitHandler<FieldValues> = (formData) => {
     axios.post("/api/entries", formData);
@@ -92,10 +128,19 @@ function App() {
   };
 
   // edit req
-  const editEntry = (formData, id) => {
-    axios.put(`/api/entries/${id}`, formData);
-    window.localStorage.removeItem(id);
+  const editEntry: SubmitHandler<FieldValues> = (formData) => {
+    console.log(formData);
   };
+
+  useEffect(() => {
+    const item = entries?.find((item) => {
+      return item.editing === true;
+    });
+
+    if (item?.editing === true) {
+      axios.put(`/api/entries/${item?._id}`, { editing: false });
+    }
+  }, []);
 
   return (
     <div className="text-lg mt-8 flex flex-col items-center justify-center gap-y-8">
@@ -206,137 +251,49 @@ function App() {
                     <TableBody key={items._id}>
                       <TableRow>
                         <TableCell className="font-medium">
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
+                          {!items.editing ? (
                             <>{items.name}</>
                           ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
                             <Input
+                              onClick={() => {
+                                handleSubmit2(editEntry);
+                              }}
                               placeholder="name"
                               type="text"
-                              {...register("name")}
-                            />
-                          ) : (
-                            <></>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
-                            <>{items.age}</>
-                          ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
-                            <Input
-                              placeholder="age"
-                              type="number"
-                              {...register("age")}
-                            />
-                          ) : (
-                            <></>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
-                            <>{items.phone}</>
-                          ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
-                            <Input
-                              placeholder="phone"
-                              type="number"
-                              {...register("phone")}
-                            />
-                          ) : (
-                            <></>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
-                            <>{items.attendence}</>
-                          ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
-                            <Input
-                              placeholder="attendence"
-                              type="number"
                               step={0.01}
-                              {...register("attendence")}
+                              {...register2("name")}
                             />
-                          ) : (
-                            <></>
                           )}
                         </TableCell>
+                        <TableCell>{items.age}</TableCell>
+                        <TableCell>{items.phone}</TableCell>
+                        <TableCell>{items.attendence}</TableCell>
                         <TableCell className="text-right">
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
-                            <>{items.cgpa}</>
-                          ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
-                            <Input
-                              placeholder="cgpa"
-                              type="number"
-                              step={0.01}
-                              {...register("cgpa")}
-                            />
-                          ) : (
-                            <></>
-                          )}
+                          {items.cgpa}
                         </TableCell>
                         <TableCell>
                           <i
                             onClick={() => deleteEntry(items._id)}
-                            className="ri-delete-bin-6-line ml-2 hover:text-red-600 cursor-pointer text-[0.9rem]"
+                            className="ri-delete-bin-6-line ml-2 hover:text-red-600 cursor-pointer text-base"
                           />
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) !== items._id ? (
+                          {!items.editing ? (
                             <i
                               onClick={() => {
-                                window.localStorage.setItem(
-                                  "editId",
-                                  JSON.stringify(items._id)
-                                );
-                                editEntry(items._id);
+                                axios.put(`/api/entries/${items._id}`, {
+                                  editing: true,
+                                });
                               }}
-                              className="ri-edit-circle-line ml-2 hover:text-teal-500"
+                              className="ri-edit-circle-line ml-2 hover:text-teal-500 text-base cursor-pointer"
                             />
                           ) : (
-                            <></>
-                          )}
-                          {JSON.parse(
-                            localStorage.getItem("editId") as string
-                          ) === items._id ? (
-                            <i
-                              onSubmit={handleSubmit(editEntry(items._id))}
-                              className="ri-edit-circle-line ml-2 hover:text-teal-500"
+                            <button
+                              onClick={() => {
+                                axios.put(`/api/entries/${items._id}`, {
+                                  editing: false,
+                                });
+                              }}
+                              className="ri-check-line ml-2 hover:text-teal-500 cursor-pointer text-lg"
                             />
-                          ) : (
-                            <></>
                           )}
                         </TableCell>
                       </TableRow>

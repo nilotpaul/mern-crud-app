@@ -3,6 +3,7 @@ export interface Entries {
   attendence: number;
   cgpa: number;
   createdAt: string;
+  editing: boolean;
   name: string;
   phone: number;
   updatedAt: string;
