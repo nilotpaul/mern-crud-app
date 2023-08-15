@@ -14,7 +14,7 @@ export default defineConfig({
       "/api/entries": {
         target: "http://localhost:5000",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
     },
   },
