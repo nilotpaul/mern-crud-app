@@ -2,7 +2,7 @@ import * as z from "zod";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useSWR, { SWRResponse } from "swr";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { Suspense, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { Entries } from "../types/types";
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shadcn/ui/table";
+import { toast } from "react-toastify";
 
 import { Separator } from "./shadcn/ui/separator";
 import { Input } from "./shadcn/ui/input";
@@ -57,7 +58,9 @@ function App() {
       .multipleOf(0.01),
   });
 
-  const formSchema2 = z.object({
+  type formSchema = z.infer<typeof formSchema>;
+
+  const formSchema2: z.ZodType<formSchema> = z.object({
     name: z
       .string()
       .min(5, { message: "name too short" })
@@ -90,8 +93,6 @@ function App() {
       .multipleOf(0.01),
   });
 
-  type formSchema = z.infer<typeof formSchema>;
-
   const { data: entries } = useSWR("/api/entries", {
     suspense: true,
     refreshInterval: 1,
@@ -110,27 +111,13 @@ function App() {
     resolver: zodResolver(formSchema),
   });
 
-  const { register: register2, handleSubmit: handleSubmit2 } =
-    useForm<formSchema>({
-      resolver: zodResolver(formSchema2),
-    });
-
-  // post req
-  const submit: SubmitHandler<FieldValues> = (formData) => {
-    axios.post("/api/entries", formData);
-
-    reset();
-  };
-
-  // del req
-  const deleteEntry = (id: string) => {
-    axios.delete(`/api/entries/${id}`);
-  };
-
-  // edit req
-  const editEntry: SubmitHandler<FieldValues> = (formData) => {
-    console.log(formData);
-  };
+  const {
+    register: register2,
+    handleSubmit: handleSubmit2,
+    formState: { errors: errs },
+  } = useForm<formSchema>({
+    resolver: zodResolver(formSchema2),
+  });
 
   useEffect(() => {
     const item = entries?.find((item) => {
@@ -142,8 +129,73 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (errs.age || errs.attendence || errs.cgpa || errs.name || errs.phone) {
+      toast.error("invalid input");
+    }
+  }, [errs]);
+
+  // post req
+  const submit: SubmitHandler<FieldValues> = async (formData) => {
+    try {
+      await axios.post("/api/entries", formData);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.log(err.cause);
+        if (err.response?.status === 409) {
+          toast.error(
+            `${err.response!.statusText}: ${err.response!.data?.message} `
+          );
+        } else {
+          toast.error("something went wrong");
+        }
+      }
+    }
+
+    reset();
+  };
+
+  // del req
+  const deleteEntry = async (id: string) => {
+    try {
+      await axios.delete(`/api/entries/${id}`);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.log(err.cause);
+        toast.error("something went wrong");
+      }
+    }
+  };
+
+  // edit req
+  const editEntry: SubmitHandler<FieldValues> = async (editData) => {
+    const item = entries?.find((item) => {
+      return item.editing === true;
+    });
+
+    if (item?.editing === true) {
+      try {
+        await axios.put(`/api/entries/${item._id}`, {
+          ...editData,
+          editing: false,
+        });
+      } catch (err) {
+        if (err instanceof AxiosError) {
+          console.log(err.cause);
+          if (err.response?.status === 409) {
+            toast.error(
+              `${err.response!.statusText}: ${err.response!.data?.message} `
+            );
+          } else {
+            toast.error("something went wrong");
+          }
+        }
+      }
+    }
+  };
+
   return (
-    <div className="text-lg mt-8 flex flex-col items-center justify-center gap-y-8">
+    <div className="relative text-lg mt-8 flex flex-col items-center justify-center gap-y-8">
       <h1 className="text-[1.65rem] font-medium">
         Add a new entry <Separator className="h-[2px] bg-black mt-1" />
       </h1>
@@ -164,7 +216,7 @@ function App() {
               {errors.name?.message}
             </p>
           </div>
-          <div className="relative">
+          <div className="relative w-full">
             <Label className="text-base">Enter student age</Label>
             <Input
               placeholder="age"
@@ -188,7 +240,7 @@ function App() {
               {errors.phone?.message}
             </p>
           </div>
-          <div className="relative">
+          <div className="relative w-full">
             <Label className="text-base">Enter student attendence</Label>
             <Input
               placeholder="attendence"
@@ -201,7 +253,7 @@ function App() {
               {errors.attendence?.message}
             </p>
           </div>
-          <div className="relative">
+          <div className="relative w-full">
             <Label className="text-base">Enter student cgpa</Label>
             <Input
               placeholder="cgpa"
@@ -255,46 +307,85 @@ function App() {
                             <>{items.name}</>
                           ) : (
                             <Input
-                              onClick={() => {
-                                handleSubmit2(editEntry);
-                              }}
-                              placeholder="name"
+                              className="bg-slate-300"
+                              defaultValue={items.name}
                               type="text"
-                              step={0.01}
                               {...register2("name")}
                             />
                           )}
                         </TableCell>
-                        <TableCell>{items.age}</TableCell>
-                        <TableCell>{items.phone}</TableCell>
-                        <TableCell>{items.attendence}</TableCell>
-                        <TableCell className="text-right">
-                          {items.cgpa}
-                        </TableCell>
                         <TableCell>
-                          <i
-                            onClick={() => deleteEntry(items._id)}
-                            className="ri-delete-bin-6-line ml-2 hover:text-red-600 cursor-pointer text-base"
-                          />
                           {!items.editing ? (
-                            <i
-                              onClick={() => {
-                                axios.put(`/api/entries/${items._id}`, {
-                                  editing: true,
-                                });
-                              }}
-                              className="ri-edit-circle-line ml-2 hover:text-teal-500 text-base cursor-pointer"
-                            />
+                            <>{items.age}</>
                           ) : (
-                            <button
-                              onClick={() => {
-                                axios.put(`/api/entries/${items._id}`, {
-                                  editing: false,
-                                });
-                              }}
-                              className="ri-check-line ml-2 hover:text-teal-500 cursor-pointer text-lg"
+                            <Input
+                              className="bg-slate-300"
+                              defaultValue={items.age}
+                              type="number"
+                              {...register2("age")}
                             />
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {!items.editing ? (
+                            <>{items.phone}</>
+                          ) : (
+                            <Input
+                              className="bg-slate-300"
+                              defaultValue={items.phone}
+                              type="number"
+                              {...register2("phone")}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {!items.editing ? (
+                            <>{items.attendence}</>
+                          ) : (
+                            <Input
+                              className="bg-slate-300"
+                              defaultValue={items.attendence}
+                              type="number"
+                              step={0.01}
+                              {...register2("attendence")}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {!items.editing ? (
+                            <>{items.cgpa}</>
+                          ) : (
+                            <Input
+                              className="bg-slate-300"
+                              defaultValue={items.cgpa}
+                              type="number"
+                              step={0.01}
+                              {...register2("cgpa")}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center justify-center">
+                            <i
+                              onClick={() => deleteEntry(items._id)}
+                              className="ri-delete-bin-6-line ml-2 hover:text-red-600 cursor-pointer text-base"
+                            />
+                            {!items.editing ? (
+                              <i
+                                onClick={() => {
+                                  axios.put(`/api/entries/${items._id}`, {
+                                    editing: true,
+                                  });
+                                }}
+                                className="ri-edit-circle-line ml-2 hover:text-teal-500 text-base cursor-pointer"
+                              />
+                            ) : (
+                              <i
+                                onClick={handleSubmit2(editEntry)}
+                                className="ri-check-line ml-2 hover:text-teal-500 cursor-pointer text-lg"
+                              />
+                            )}
+                          </span>
                         </TableCell>
                       </TableRow>
                     </TableBody>
