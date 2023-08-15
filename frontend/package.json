@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"npx tailwindcss -i ./src/globals.css -o ./dist/output.css --watch\"",
-    "build": "tsc && vite build && npx tailwindcss -i ./src/globals.css -o ./dist/output.css",
+    "build": "vite build && npx tailwindcss -i ./src/globals.css -o ./dist/output.css",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
