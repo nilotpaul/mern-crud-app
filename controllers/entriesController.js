@@ -13,7 +13,7 @@ const getEntries = asyncHandler(async (req, res) => {
 // post req to /api/entries
 const postEntries = asyncHandler(async (req, res) => {
   const { name, age, cgpa, attendence, phone } = req.body;
-  if (!name || !age || !cgpa || !attendence, || !phone) {
+  if (!name || !age || !cgpa || !attendence || !phone) {
     res.status(400);
     throw new Error("none of the fileds can be empty");
   }
